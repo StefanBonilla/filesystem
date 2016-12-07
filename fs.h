@@ -33,20 +33,6 @@
 #define OTHER_WR_PERM            0000002
 #define OTHER_EX_PERM            0000001
 
-/* permission string constants and indices */
-#define PERM_STR_LEN             10
-#define FILE_TYPE                0
-#define OWNER_R                  1
-#define OWNER_W                  2
-#define OWNER_X                  3
-#define GROUP_R                  4
-#define GROUP_W                  5
-#define GROUP_X                  6
-#define OTHER_R                  7
-#define OTHER_W                  8
-#define OTHER_X                  9
-
-
 struct dirent
 {
    uint32_t inode;
