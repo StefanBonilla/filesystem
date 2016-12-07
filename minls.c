@@ -94,7 +94,6 @@ void listDir(FILE * fImage, struct inode * inode, struct superblock * superBlock
 
    numEntries = inode->size / DIRENT_SIZE;
    printf("numEntries: %d\n", numEntries);
-   fseek(fImage, 0, SEEK_SET);
    fseek(fImage, superBlock->firstdata * zonesize, SEEK_CUR);
 
    for(i = 0; i < numEntries; i++)
@@ -112,12 +111,36 @@ void listDir(FILE * fImage, struct inode * inode, struct superblock * superBlock
 
 }
 
+void printPartitionTable(FILE * fImage)
+{
+   int i;
+   int rew = ftell(fImage);
+   struct part_entry * entry = malloc(sizeof(struct part_entry));
+   printf("Partition Table: \n");
+   printf("       ----Start----       ------End------\n");
+   printf("  Boot head  sec  cyl Type head  sec  cyl      First    Size\n");
+
+   for (i = 0 ; i < NUM_PARTITIONS; i++)
+   {
+      fread(entry, sizeof(struct part_entry), 1, fImage);
+      printf("  0x%2x %4d %4d %3d  0x%2x %4d  %3d  %3d %10lu %7lu\n", 
+         entry->bootind, (int)entry->start_head,(int)entry->start_sec,
+         (int) entry->start_cyl, (int)entry->sysind, (int)entry->last_head, 
+         (int)entry->last_sec, (int)entry->last_cyl, 
+         (long unsigned) entry->lowsec, (long unsigned) entry->size);
+   }
+   fseek(fImage, rew, SEEK_SET);
+}
+
 /*assumes file stream is set to beginning of partition table*/
 void validatePartTable(FILE * fImage)
 {
    int rew = ftell(fImage);
    uint8_t check = 0;
+
+   printf("     VALIDATING table\n");
    fseek(fImage, sizeof(struct part_entry) * 4, SEEK_CUR);
+   printf("      fImage addr: %lu\n", ftell(fImage));
    fread(&check, sizeof(uint8_t), 1, fImage);
    if(check != BOOT_SECTOR_BYTE_510)
    {
@@ -136,7 +159,8 @@ void validatePartTable(FILE * fImage)
 
 void partIsMinix(struct part_entry * entry)
 {
-   if(entry->type != MINIX_PART_TYPE)
+   printf("     MINIX check\n");
+   if(entry->sysind != MINIX_PART_TYPE)
    {
       fprintf(stderr, "not Minix partition\n");
       exit(EXIT_FAILURE);
@@ -147,26 +171,37 @@ void partIsMinix(struct part_entry * entry)
  *assume fImage is set at the biginning of the partition table*/
 void seekPartition(FILE * fImage, int partition)
 {
+   struct part_entry * entry = malloc(sizeof(struct part_entry));
+   printPartitionTable(fImage);
    validatePartTable(fImage);
+   printf("   SEEKING partition %d\n", partition);
 
    /*get entry from table*/
-   fseek(fImage, partition* sizeof(struct part_entry));
+   fseek(fImage, partition* sizeof(struct part_entry), SEEK_CUR);
    fread(entry, sizeof(struct part_entry), 1, fImage);
    partIsMinix(entry);
+   printf("   entry->lowsec: %lu\n", (long unsigned) entry->lowsec);
 
    /*skip to specified partition entry*/
-   fseek(fImage, 0, SEEK_SET);
-   fseek(fImage, entry->lFirst, SEEK_CUR);
+   fseek(fImage, ((long unsigned)entry->lowsec) * SECTOR_SIZE, SEEK_SET);
 }
+
+/*goes to the start of the filesystem*/
 void findFileSystem(FILE * fImage, int partition, int subpartition)
 {
-   struct part_entry * entry = malloc(sizeof(struct part_entry));
-
+   int rew;
+   printf("FINDING file system\n");
    fseek(fImage, 0, SEEK_SET);
    fseek(fImage, LOC_PARTITION_TABLE, SEEK_CUR);
    seekPartition(fImage, partition);
 
-
+   if(subpartition >= 0)
+   {
+      printf("   current fImage addr: %lu\n", ftell(fImage));
+      rew = ftell(fImage);
+      fseek(fImage, LOC_PARTITION_TABLE, SEEK_CUR);
+      seekPartition(fImage, subpartition);
+   }
 }
 
 void getInode(FILE * fImage, uint32_t nodeNum, 
@@ -195,6 +230,7 @@ struct superblock * getfsSuperblock(struct cmdLine * cmdline )
 	struct superblock * superBlock = malloc(sizeof(struct superblock));
 	FILE * fImage;
    struct inode * inode = malloc(sizeof(struct inode));
+   int rew;
 	fImage = fopen(cmdline->imageFile, "r");
 	if(!fImage)
 	{
@@ -211,13 +247,15 @@ struct superblock * getfsSuperblock(struct cmdLine * cmdline )
    {
       if(cmdline->sFlag)
       {
-
+         findFileSystem(fImage, cmdline->pVal, cmdline->sVal);
       }
       else
       {
-         
+         findFileSystem(fImage, cmdline->pVal, -1);
       }
    }
+   rew = ftell(fImage);
+   fseek(fImage, SECTOR_SIZE * 2, SEEK_CUR);
 
 	fread(superBlock, sizeof(struct superblock), 1, fImage);
 	printSuperBlock(superBlock);
@@ -225,12 +263,13 @@ struct superblock * getfsSuperblock(struct cmdLine * cmdline )
    /*seek the inode of the root directory*/
    printf("SECTOR_SIZE = %d\n", SECTOR_SIZE);
    printf("blocksize = %d\n", superBlock->blocksize);
-   fseek(fImage, superBlock->blocksize * 2 , SEEK_SET);
+   fseek(fImage, rew, SEEK_SET);
+   fseek(fImage, superBlock->blocksize * 2 , SEEK_CUR);
    fseek(fImage, (superBlock->i_blocks * superBlock->blocksize) +
       (superBlock->z_blocks * superBlock->blocksize), SEEK_CUR);
-   /*fseek(fImage, sizeof(struct inode), SEEK_CUR);*/
    fread(inode, sizeof(struct inode), 1, fImage);
    printiNode(inode);
+   fseek(fImage, rew, SEEK_SET);
 
    listDir(fImage, inode, superBlock);
 
