@@ -1,13 +1,16 @@
+#ifndef _FS_H
+#define _FS_H
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
 
-#define FS_H
-
 #define SECTOR_SIZE              512
 #define DIRECT_ZONES             7
-#define DIRENT_NAME_LEN          60 
+#define DIRENT_NAME_LEN          60
+
+#define BS_BYTE_510              510
 
 /*navigation stuff*/
 #define LOC_PARTITION_TABLE      0x1BE
@@ -91,3 +94,4 @@ struct inode
    uint32_t unused;             
 };
 
+#endif /* _FS_H */
