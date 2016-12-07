@@ -79,7 +79,6 @@ void printiNode(struct inode * inode)
    printf("      zone[6] = %15d\n", inode->zone[6]);
    printf("  uint32_t indirect %15d\n", inode->indirect);
    printf("  uint32_t double %15d\n", inode->two_indirect);
-
 }
 
 
@@ -109,6 +108,63 @@ void listDir(FILE * fImage, struct inode * inode, struct superblock * superBlock
          printf(" size: %d\n", inode->size);
       }
    }
+
+
+}
+
+/*assumes file stream is set to beginning of partition table*/
+void validatePartTable(FILE * fImage)
+{
+   int rew = ftell(fImage);
+   uint8_t check = 0;
+   fseek(fImage, sizeof(struct part_entry) * 4, SEEK_CUR);
+   fread(&check, sizeof(uint8_t), 1, fImage);
+   if(check != BOOT_SECTOR_BYTE_510)
+   {
+      fprintf(stderr, "invalid partition table\n");
+      exit(EXIT_FAILURE);
+   }
+   fread(&check, sizeof(uint8_t), 1, fImage);
+   if(check != BOOT_SECTOR_BYTE_511)
+   {
+      fprintf(stderr, "invalid partition table\n");
+      exit(EXIT_FAILURE);
+   }
+   /*set back to beginning of partition table*/
+   fseek(fImage, rew, SEEK_SET);
+}
+
+void partIsMinix(struct part_entry * entry)
+{
+   if(entry->type != MINIX_PART_TYPE)
+   {
+      fprintf(stderr, "not Minix partition\n");
+      exit(EXIT_FAILURE);
+   }
+}
+
+/*sets fImage to start of specified partition
+ *assume fImage is set at the biginning of the partition table*/
+void seekPartition(FILE * fImage, int partition)
+{
+   validatePartTable(fImage);
+
+   /*get entry from table*/
+   fseek(fImage, partition* sizeof(struct part_entry));
+   fread(entry, sizeof(struct part_entry), 1, fImage);
+   partIsMinix(entry);
+
+   /*skip to specified partition entry*/
+   fseek(fImage, 0, SEEK_SET);
+   fseek(fImage, entry->lFirst, SEEK_CUR);
+}
+void findFileSystem(FILE * fImage, int partition, int subpartition)
+{
+   struct part_entry * entry = malloc(sizeof(struct part_entry));
+
+   fseek(fImage, 0, SEEK_SET);
+   fseek(fImage, LOC_PARTITION_TABLE, SEEK_CUR);
+   seekPartition(fImage, partition);
 
 
 }
@@ -147,9 +203,21 @@ struct superblock * getfsSuperblock(struct cmdLine * cmdline )
 	}
 
 
+   printf("sizeof partition entry * 4: %d\n", sizeof(struct part_entry) * 4);
 
-	fseek(fImage, 0, SEEK_SET);
-	fseek(fImage, SECTOR_SIZE * 2, SEEK_CUR);
+	/*fseek(fImage, 0, SEEK_SET);
+	fseek(fImage, SECTOR_SIZE * 2, SEEK_CUR);*/
+   if(cmdline->pFlag)
+   {
+      if(cmdline->sFlag)
+      {
+
+      }
+      else
+      {
+         
+      }
+   }
 
 	fread(superBlock, sizeof(struct superblock), 1, fImage);
 	printSuperBlock(superBlock);
