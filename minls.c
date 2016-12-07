@@ -7,8 +7,12 @@
 #include <getopt.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <time.h>
 
 #include "fs.h"
+
+void getInode(FILE * fImage, uint32_t nodeNum, 
+   struct superblock* superBlock, struct inode * node);
 
 struct cmdLine
 {
@@ -49,14 +53,85 @@ void printSuperBlock(struct superblock * superBlock)
 
 void printiNode(struct inode * inode)
 {
+   time_t temp;
    printf("File inode: \n");
    printf("  uint16_t mode %15x\n", inode->mode);
    printf("  uint16_t links %15d\n", inode->links);
    printf("  uint16_t uid %15d\n", inode->uid);
    printf("  uint16_t gid %15d\n", inode->gid);
    printf("  uint16_t size %15d\n", inode->size);
-   printf("  zone[0] = %15d\n", inode->zone[0]);
+   temp = (time_t) inode->atime;
+   printf("  uint32_t atime %15d --- %s", 
+      inode->atime, ctime(&temp));
+   temp = (time_t) inode->mtime;
+   printf("  uint32_t mtime %15d --- %s", 
+      inode->mtime, ctime(&temp));
+   temp = (time_t) inode->ctime;
+   printf("  uint32_t ctime %15d --- %s", 
+      inode->ctime, ctime(&temp));
+   printf("Direct Zones: \n");
+   printf("      zone[0] = %15d\n", inode->zone[0]);
+   printf("      zone[1] = %15d\n", inode->zone[1]);
+   printf("      zone[2] = %15d\n", inode->zone[2]);
+   printf("      zone[3] = %15d\n", inode->zone[3]);
+   printf("      zone[4] = %15d\n", inode->zone[4]);
+   printf("      zone[5] = %15d\n", inode->zone[5]);
+   printf("      zone[6] = %15d\n", inode->zone[6]);
+   printf("  uint32_t indirect %15d\n", inode->indirect);
+   printf("  uint32_t double %15d\n", inode->two_indirect);
+
 }
+
+
+void listDir(FILE * fImage, struct inode * inode, struct superblock * superBlock)
+{
+   struct dirent * dirent = malloc(sizeof(struct dirent));
+   int zone0, i;
+   int numEntries;
+   uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
+
+   zone0 = inode->zone[0];
+
+
+   numEntries = inode->size / DIRENT_SIZE;
+   printf("numEntries: %d\n", numEntries);
+   fseek(fImage, 0, SEEK_SET);
+   fseek(fImage, superBlock->firstdata * zonesize, SEEK_CUR);
+
+   for(i = 0; i < numEntries; i++)
+   {
+      fread(dirent, sizeof(struct dirent), 1, fImage);
+      if(dirent->inode)
+      {
+         getInode(fImage, dirent->inode, superBlock, inode);
+         printf(" node: %d,    name: %s  ", 
+            dirent->inode, dirent->filename);
+         printf(" size: %d\n", inode->size);
+      }
+   }
+
+
+}
+
+void getInode(FILE * fImage, uint32_t nodeNum, 
+   struct superblock* superBlock, struct inode * node)
+{
+   int rewind = ftell(fImage);
+
+   fseek(fImage, 0, SEEK_SET);
+   fseek(fImage, superBlock->blocksize * 2 , SEEK_CUR);
+   fseek(fImage, (superBlock->i_blocks * superBlock->blocksize) +
+      (superBlock->z_blocks * superBlock->blocksize), SEEK_CUR);
+
+   fseek(fImage, sizeof(struct inode) * (nodeNum -1) , SEEK_CUR);
+   fread(node, sizeof(struct inode) , 1, fImage);
+
+   /*rewind*/
+   fseek(fImage, 0, SEEK_SET);
+   fseek(fImage, rewind, SEEK_CUR);
+
+}
+
 
 struct superblock * getfsSuperblock(struct cmdLine * cmdline )
 {
@@ -70,6 +145,9 @@ struct superblock * getfsSuperblock(struct cmdLine * cmdline )
 		fprintf(stderr, "failed to open disk image\n");
 		exit(EXIT_FAILURE);
 	}
+
+
+
 	fseek(fImage, 0, SEEK_SET);
 	fseek(fImage, SECTOR_SIZE * 2, SEEK_CUR);
 
@@ -86,8 +164,11 @@ struct superblock * getfsSuperblock(struct cmdLine * cmdline )
    fread(inode, sizeof(struct inode), 1, fImage);
    printiNode(inode);
 
+   listDir(fImage, inode, superBlock);
+
 
    return superBlock;
+
 }
 
 void initCmdLine(struct cmdLine * cmdline)
