@@ -81,6 +81,73 @@ void printiNode(struct inode * inode)
    printf("  uint32_t double %15d\n", inode->two_indirect);
 }
 
+struct inode * findDir(FILE * fImage, struct inode * inode, 
+   struct superblock * superBlock, char * path)
+{
+   struct dirent * currDirent = malloc(sizeof(struct dirent));
+   uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
+   int numUsedZones;
+   int entriesPerZone = zonesize / DIRENT_SIZE;
+   int currZone = 0;
+   int numEntriesRead;
+   int zoneDirIndex = 0;     /* number of entries looked at in directory*/
+   int rew = ftell(fImage);
+   int notFound = 0;
+
+   
+   struct inode * nextNode = malloc(sizeof(struct inode));
+   char * pathToken = strtok(path, PATH_DELIM);
+
+   while(pathToken)
+   {
+      numEntriesRead = 0;
+      numUsedZones = inode->size/ zonesize;
+
+      /*iterate through each of the inode's zones*/
+      for (currZone = 0; currZone < 7; currZone++)
+      {
+         /*iterate through the entries of the zones*/
+         for(zoneDirIndex = 0; zoneDirIndex < entriesPerZone; zoneDirIndex++)
+         {
+            if(numEntriesRead + 1 > numUsedZones)
+            {
+               notFound = 1;
+               break;
+            }
+            numEntriesRead++;
+            fread(currDirent, sizeof(struct currDirent), 1, fImage);
+            if(!strcmp(currDirent->filename, pathToken) && 
+               currDirent->inode)
+            {
+               /*we have a hit, get the inode*/
+               getInode(fImage, currDirent->inode, superBlock, 
+                  nextNode);]
+
+
+               pathToken = strtok(NULL, PATH_DELIM);
+               numUsedZones = nextNode->size / zonesize;
+               numEntriesRead = 0;
+               currZone = 0;
+               break;
+            }
+
+
+         }
+         if(notFound)
+            break;
+
+         fseek(fImage, inode->zone[currZone] * zonesize, SEEK_CUR);
+
+
+      }
+      fprintf(stderr, "could not find directory/file\n");
+      exit(EXIT_FAILURE);
+   }
+
+
+
+
+}
 
 void listDir(FILE * fImage, struct inode * inode, struct superblock * superBlock)
 {
@@ -159,7 +226,7 @@ void validatePartTable(FILE * fImage)
 
 void partIsMinix(struct part_entry * entry)
 {
-   printf("     MINIX check\n");
+   printf("     MINIX check: 0x%x\n", entry->sysind);
    if(entry->sysind != MINIX_PART_TYPE)
    {
       fprintf(stderr, "not Minix partition\n");
