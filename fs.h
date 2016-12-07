@@ -35,7 +35,7 @@
 
 struct dirent
 {
-   uint32_t inode;;
+   uint32_t inode;
    unsigned char filename[DIRENT_NAME_LEN];
 };
 
@@ -91,4 +91,3 @@ struct inode
    uint32_t unused;             
 };
 
-#endif
