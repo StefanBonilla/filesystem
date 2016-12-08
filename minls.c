@@ -14,6 +14,8 @@
 
 void getInode(FILE * fImage, uint32_t nodeNum, 
    struct superblock* superBlock, struct inode * node);
+void listDir(FILE * fImage, struct inode * inode, 
+   struct superblock * superBlock);
 
 struct cmdLine
 {
@@ -102,6 +104,8 @@ int navZone(FILE * fImage, struct inode * nextNode,
    int i;
 
    seekZone(fImage, superBlock, zoneNum);
+   printf("     NAV ZONE: totalEntriesRead: %d, numEntriesInDir : %d\n", 
+      *totalEntriesRead, numEntriesInDir);
    for(i = 0; i < entriesPerZone; i++)
    {
       if(*totalEntriesRead + 1 > numEntriesInDir)
@@ -140,10 +144,13 @@ struct inode * findDir(FILE * fImage, struct inode * inode,
    printf("NAVIGATING to inode of specified path\n");
 
    nextNode = inode;
+   printf("**************nextNode: \n");
+   printiNode(nextNode);
 
    while(pathToken)
    {
       printf("    ->locating directory: %s\n", pathToken);
+      listDir(fImage, nextNode, superBlock);
       numEntriesRead = 0;
       numEntriesInDir = nextNode->size / DIRENT_SIZE;
 
@@ -175,32 +182,38 @@ struct inode * findDir(FILE * fImage, struct inode * inode,
    return nextNode;
 }
 
-void listDir(FILE * fImage, struct inode * inode, struct superblock * superBlock)
+void listDir(FILE * fImage, struct inode * inode, 
+   struct superblock * superBlock)
 {
    struct dirent * dirent = malloc(sizeof(struct dirent));
    int zone0, i;
    int numEntries;
    uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
-   int rew = ftell(fImage);
+   int base = ftell(fImage);
+   int zone = ftell(fImage);
    zone0 = inode->zone[0];
 
    printf("LISTING directories:\n");
    numEntries = inode->size / DIRENT_SIZE;
-   printf("numEntries: %d\n", numEntries);
+   printf("    numEntries: %d\n", numEntries);
    fseek(fImage, superBlock->firstdata * zonesize, SEEK_CUR);
+   zone = ftell(fImage);
 
    for(i = 0; i < numEntries; i++)
    {
+      fseek(fImage, zone, SEEK_SET);
       fread(dirent, sizeof(struct dirent), 1, fImage);
+      zone = ftell(fImage);
       if(dirent->inode)
       {
+         fseek(fImage, base, SEEK_SET);
          getInode(fImage, dirent->inode, superBlock, inode);
-         printf(" node: %d,    name: %s  ", 
+         printf("      node: %d,    name: %s  ", 
             dirent->inode, dirent->filename);
          printf(" size: %d\n", inode->size);
       }
    }
-   fseek(fImage, rew, SEEK_SET);
+   fseek(fImage, base, SEEK_SET);
 
 }
 
@@ -300,9 +313,8 @@ void findFileSystem(FILE * fImage, int partition, int subpartition)
 void getInode(FILE * fImage, uint32_t nodeNum, 
    struct superblock* superBlock, struct inode * node)
 {
-   int rewind = ftell(fImage);
+   int rew = ftell(fImage);
 
-   fseek(fImage, 0, SEEK_SET);
    fseek(fImage, superBlock->blocksize * 2 , SEEK_CUR);
    fseek(fImage, (superBlock->i_blocks * superBlock->blocksize) +
       (superBlock->z_blocks * superBlock->blocksize), SEEK_CUR);
@@ -311,8 +323,7 @@ void getInode(FILE * fImage, uint32_t nodeNum,
    fread(node, sizeof(struct inode) , 1, fImage);
 
    /*rewind*/
-   fseek(fImage, 0, SEEK_SET);
-   fseek(fImage, rewind, SEEK_CUR);
+   fseek(fImage, rew, SEEK_SET);
 
 }
 
@@ -440,7 +451,11 @@ int main(int argc, char ** argv)
    if (cmdline->pathName) 
    {
       printf("******SEARCHING for path: %s\n", cmdline->pathName);
+      printf("ROOT INODE: \n");
+      printiNode(rootInode);
       pathInode = findDir(fImage, rootInode, superBlock, cmdline->pathName);
+      printf("PATH INODE: \n");
+      printiNode(pathInode);
       listDir(fImage, pathInode, superBlock);
    }
    
