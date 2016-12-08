@@ -1,17 +1,15 @@
-TARGET   = minls
 CC       = gcc
 CCFLAGS  = -std=c89 -pedantic -Wall -Werror
-SOURCES  = $(wildcard *.c)
-INCLUDES = $(wildcard *.h)
-OBJECTS  = $(SOURCES:.c=.o)
+INCLUDES = fs.h inode.h minshared.h
+SOURCES  = inode.c minshared.c
 
-all:$(TARGET)
+all: minls minget
 
-$(TARGET):$(OBJECTS)
-	$(CC) -o $(TARGET)  $(OBJECTS)
+minls: minls inode.c minshared.c $(INCLUDES)
+	$(CC) $(CCFLAGS) -o minls $(SOURCES) minls.c
 
-$(OBJECTS):$(SOURCES) 
-	$(CC) -c $(CCFLAGS) $(SOURCES)
+minget: minget inode.c minshared.c $(INCLUDES) 
+	$(CC) $(CCFLAGS) -o minget $(SOURCES) minget.c
 
 clean:
-	rm -f $(TARGET) $(OBJECTS)
+	rm -f minls minget
