@@ -102,4 +102,15 @@ struct inode
    uint32_t unused;             
 };
 
+struct cmdLine
+{
+   uint32_t vFlag;
+   uint32_t pFlag;
+   uint32_t pVal;
+   uint32_t sFlag;
+   uint32_t sVal;
+   char * imageFile;
+   char * pathName;
+};
+
 #endif /* _FS_H */

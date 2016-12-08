@@ -1,11 +1,11 @@
 #ifndef _INODE_H
 #define _INODE_H
 
+#include "fs.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include "fs.h"
 
 /* permission string constants and indices */
 #define PERM_STR_LEN             10

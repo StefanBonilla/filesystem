@@ -1,3 +1,6 @@
+#include "fs.h"
+#include "inode.h"
+#include "minshared.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -9,10 +12,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <time.h>
-
-#include "fs.h"
-#include "inode.h"
-#include "minshared.h"
 
 int main(int argc, char ** argv) {
     printf("Hello, World!\n");

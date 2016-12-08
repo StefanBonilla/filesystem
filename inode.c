@@ -1,10 +1,11 @@
+#include "fs.h"
+#include "inode.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <unistd.h>
 #include <string.h>
-#include "inode.h"
 
 char * getPermissionString(struct inode * inode) {
     char * perm = (char *)malloc(sizeof(char) * PERM_STR_LEN);
