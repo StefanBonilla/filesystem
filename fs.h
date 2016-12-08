@@ -6,6 +6,9 @@
 #include <stdint.h>
 #include <inttypes.h>
 
+#define MINIX_VERSION            3
+
+
 #define NUM_PARTITIONS           4
 #define SECTOR_SIZE              512
 #define DIRECT_ZONES             7
