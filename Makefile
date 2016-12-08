@@ -5,10 +5,10 @@ SOURCES  = inode.c minshared.c
 
 all: minls minget
 
-minls: minls inode.c minshared.c $(INCLUDES)
+minls: minls.c inode.c minshared.c $(INCLUDES)
 	$(CC) $(CCFLAGS) -o minls $(SOURCES) minls.c
 
-minget: minget inode.c minshared.c $(INCLUDES) 
+minget: minget.c inode.c minshared.c $(INCLUDES) 
 	$(CC) $(CCFLAGS) -o minget $(SOURCES) minget.c
 
 clean:
