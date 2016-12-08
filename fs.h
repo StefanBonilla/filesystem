@@ -11,9 +11,13 @@
 #define DIRECT_ZONES             7
 #define DIRENT_NAME_LEN          60
 
+#define ENTRY_FOUND              1
+#define ENTRY_MISSING_IN_ZONE    0
+
 #define BS_BYTE_510              510
 
 /*navigation stuff*/
+#define PATH_DELIM               "/"
 #define LOC_PARTITION_TABLE      0x1BE
 #define MINIX_PART_TYPE          0x81
 #define BOOT_SECTOR_BYTE_510     0x55
