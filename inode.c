@@ -44,3 +44,7 @@ char * getPermissionString(struct inode * inode) {
 
     return perm;
 }
+
+int isDir(struct inode * inode) {
+    return inode->mode & DIR_MASK;
+}

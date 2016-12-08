@@ -21,5 +21,6 @@
 #define OTHER_X                  9
 
 extern char * getPermissionString(struct inode *);
+extern int isDir(struct inode *);
 
 #endif /* _INODE_H */
