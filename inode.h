@@ -22,5 +22,6 @@
 
 extern char * getPermissionString(struct inode *);
 extern int isDir(struct inode *);
+extern int isReg(struct inode *);
 
 #endif /* _INODE_H */

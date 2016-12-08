@@ -111,6 +111,7 @@ struct cmdLine
    uint32_t sVal;
    char * imageFile;
    char * pathName;
+   char * destPath;
 };
 
 #endif /* _FS_H */

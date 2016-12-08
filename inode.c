@@ -49,3 +49,7 @@ char * getPermissionString(struct inode * inode) {
 int isDir(struct inode * inode) {
     return inode->mode & DIR_MASK;
 }
+
+int isReg(struct inode * inode) {
+    return inode->mode & REG_FILE_MASK;
+}
