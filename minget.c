@@ -91,17 +91,52 @@ char * getFileContents(FILE * fImage, struct superblock * superBlock,
 {
    uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
    struct inode * srcPathInode = findDir(fImage, inode, superBlock, path);
-   char * fileBuffer = (char *)calloc(zonesize, sizeof(char));
+   char * fileBuffer = (char *)calloc(inode->size, sizeof(char));
+
+   int numZones = inode->size / zonesize;
+   int bytesRead = 0;
+   int i;
+   int base = ftell(fImage);
+
+   if (numZones > 7)
+   {
+      numZones = 7;
+   }
 
    if (isReg(srcPathInode))
    {
-      seekZone(fImage, superBlock, srcPathInode->zone[0]);
-      fread(fileBuffer, srcPathInode->size, 1, fImage);
-   } else {
+      for(i = 0; i < numZones; i++)
+      {
+         if(srcPathInode->zone[i])
+         {
+            fseek(fImage, base, SEEK_SET);
+            if(inode->size - bytesRead <= 0)
+            {
+               fprintf(stderr, "fuck\n");
+               exit(EXIT_FAILURE);
+            }
+            if(inode->size - bytesRead < zonesize)
+            {
+               seekZone(fImage, superBlock, srcPathInode->zone[i]);
+               fread(fileBuffer + bytesRead, inode->size - bytesRead, 
+                  1, fImage);
+               bytesRead += inode->size - bytesRead;
+            }
+            else
+            {
+               seekZone(fImage, superBlock, srcPathInode->zone[i]);
+               fread(fileBuffer + bytesRead, zonesize, 1, fImage);
+               bytesRead += zonesize;
+            }
+         }
+      }
+   } 
+   else 
+   {
       /* file is not a regular file */
       exit(EXIT_FAILURE);
    }
-
+   fseek(fImage, base, SEEK_SET);
    return fileBuffer;
 }
 
