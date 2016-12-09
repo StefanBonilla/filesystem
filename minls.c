@@ -22,7 +22,6 @@ void printUsage()
    printf(" for filesystem (default: none)\n");  
    printf("-h  help    --- print usage information and exit\n");
    printf("-v  verbose --- increase verbosity level\n");
-
 }
 
 void printEntry(struct inode * inode, char * pathname)
@@ -31,40 +30,65 @@ void printEntry(struct inode * inode, char * pathname)
    printf("%s %9d %s\n", perms, inode->size, pathname);
 }
 
+
+
 void listDir(FILE * fImage, struct inode * basenode, 
    struct superblock * superBlock)
 {
    struct dirent * dirent = malloc(sizeof(struct dirent));
    struct inode * tempNode = malloc(sizeof(struct inode));
-   int  i;
+   int i, j;
    int numEntries;
+   int entriesToRead;
    uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
    int base = ftell(fImage);
    int zone;
-
+   int numZones = basenode->size / zonesize;
+   int numReadEntries = 0;
+   int entriesPerZone = zonesize / DIRENT_SIZE;
 
    numEntries = basenode->size / DIRENT_SIZE;
 
-   fseek(fImage, basenode->zone[0] * zonesize, SEEK_CUR);
-
-   /*set zone to the start of the partition data zones*/
-   zone = ftell(fImage);
-
-   for(i = 0; i < numEntries; i++)
-   {
-      fseek(fImage, zone, SEEK_SET);
-      fread(dirent, sizeof(struct dirent), 1, fImage);
-      zone = ftell(fImage);
-      if(dirent->inode)
-      {
-         fseek(fImage, base, SEEK_SET);
-         getInode(fImage, dirent->inode, superBlock, tempNode);
-         printEntry(tempNode, (char *) dirent->filename);
-         /*printf("      node: %d,    name: %s  ", 
-            dirent->inode, dirent->filename);
-         printf(" size: %d\n", tempNode->size);*/
-      }
+   if (basenode->size % zonesize != 0) {
+      numZones++;
    }
+
+   if (numZones > 7)
+   {
+      numZones = 7;
+   }
+
+   for (i = 0; i < numZones; i++) {
+      fseek(fImage, base, SEEK_SET);
+      if (basenode->zone[i]) 
+      {
+         fseek(fImage, basenode->zone[i] * zonesize, SEEK_CUR);
+         zone = ftell(fImage);
+         if (numEntries - numReadEntries <= entriesPerZone) 
+         {
+            entriesToRead = numEntries - numReadEntries;
+         } 
+         else 
+         {
+            entriesToRead = entriesPerZone;
+         }
+
+         for(j = 0; j < entriesToRead; j++)
+         {
+            fseek(fImage, zone, SEEK_SET);
+            fread(dirent, sizeof(struct dirent), 1, fImage);
+            zone = ftell(fImage);
+            if(dirent->inode)
+            {
+               fseek(fImage, base, SEEK_SET);
+               getInode(fImage, dirent->inode, superBlock, tempNode);
+               printEntry(tempNode, (char *) dirent->filename);
+               numReadEntries++;
+            }
+         }
+      }  
+   }
+
    fseek(fImage, base, SEEK_SET);
 }
 
@@ -82,6 +106,11 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
    int opt;
    int lineArg = 1;
 
+   if (argc == 1) 
+   {
+      printUsage();
+   }
+
    initCmdLine(cmdline);
    while((opt = getopt(argc, argv, "vp:s:")) != -1)
    {
@@ -94,12 +123,10 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
          case 'p':
             cmdline->pFlag = 1;
             cmdline->pVal = atoi(optarg);
-            /*TODO: handle case of no specified partition*/
             lineArg += 2;
             break;
          case 's':
             cmdline->sFlag = 1;
-            /*TODO: handle case of no specified subpartition*/
             cmdline->sVal = atoi(optarg);
             lineArg += 2;
             break;
@@ -109,8 +136,7 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
       }
 
    }
-   /*TODO: check if valid*/
-   cmdline->imageFile = argv[lineArg];
+   cmdline->imagePath = argv[lineArg];
    lineArg++;
 
    /*check if a path is specified*/
@@ -138,7 +164,7 @@ int main(int argc, char ** argv)
    }
 
 
-   fImage = fopen(cmdline->imageFile, "r");
+   fImage = fopen(cmdline->imagePath, "r");
    if(!fImage)
    {
       fprintf(stderr, "failed to open disk image\n");
@@ -147,24 +173,16 @@ int main(int argc, char ** argv)
 
    superBlock = getfsSuperblock(fImage, cmdline);
    getInode(fImage, 1, superBlock, rootInode); /* get the root inode */
-   /*printf("*******root: \n");
-   printiNode(rootInode);*/
-
-   /*listDir(fImage, rootInode, superBlock); *//* ls root dir */
 
    /* Navigate to the dir specified by the path */
    if (cmdline->pathName) 
    {
       strcpy(pathName, cmdline->pathName);
-
-      /*printf("******SEARCHING for path: %s\n", cmdline->pathName);
-      printf("ROOT INODE: \n");
-      printiNode(rootInode);*/
       pathInode = findDir(fImage, rootInode, superBlock, cmdline->pathName);
-      if(cmdline->vFlag)
+      if(cmdline->vFlag) 
+      {
          printiNode(pathInode);
-      /*printf("PATH INODE: \n");
-      printiNode(pathInode);*/
+      }
 
       if(isDir(pathInode))
       {

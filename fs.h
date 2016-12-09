@@ -109,7 +109,7 @@ struct cmdLine
    uint32_t pVal;
    uint32_t sFlag;
    uint32_t sVal;
-   char * imageFile;
+   char * imagePath;
    char * pathName;
    char * destPath;
 };

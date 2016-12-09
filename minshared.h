@@ -12,10 +12,10 @@ extern int navZone(FILE *, struct inode *, struct superblock *, int, char *,
 extern struct inode * findDir(FILE *, struct inode *, struct superblock *, 
    char *);
 extern void printPartitionTable(FILE *);
-extern void validatePartTable(FILE *);
+extern void validatePartTable(FILE *, char *);
 extern void partIsMinix(struct part_entry *);
-extern void seekPartition(FILE *, int, int);
-extern void findFileSystem(FILE *, int, int, int);
+extern void seekPartition(FILE *, int, int, char *);
+extern void findFileSystem(FILE *, int, int, int, char *);
 extern struct superblock * getfsSuperblock(FILE *, struct cmdLine *);
 
 #endif /* _MINSHARED_H */

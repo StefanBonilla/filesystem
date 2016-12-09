@@ -40,6 +40,11 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
    int opt;
    int lineArg = 1;
 
+   if (argc == 1) 
+   {
+      printUsage();
+   }
+
    initCmdLine(cmdline);
    while((opt = getopt(argc, argv, "vp:s:")) != -1)
    {
@@ -52,12 +57,10 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
          case 'p':
             cmdline->pFlag = 1;
             cmdline->pVal = atoi(optarg);
-            /*TODO: handle case of no specified partition*/
             lineArg += 2;
             break;
          case 's':
             cmdline->sFlag = 1;
-            /*TODO: handle case of no specified subpartition*/
             cmdline->sVal = atoi(optarg);
             lineArg += 2;
             break;
@@ -67,8 +70,7 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
       }
 
    }
-   /*TODO: check if valid*/
-   cmdline->imageFile = argv[lineArg];
+   cmdline->imagePath = argv[lineArg];
    lineArg++;
 
    /*mandatory src path*/
@@ -86,62 +88,66 @@ int parseCmdLine(int argc, char ** argv, struct cmdLine * cmdline)
    return 0;
 }
 
-char * getFileContents(FILE * fImage, struct superblock * superBlock, 
-   struct inode * inode, char * path) 
+void writeFileContents(FILE * fImage, struct superblock * superBlock, 
+   struct inode * inode, char * path, FILE * destFile) 
 {
    uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
    struct inode * srcPathInode = findDir(fImage, inode, superBlock, path);
-   char * fileBuffer = (char *)calloc(inode->size, sizeof(char));
+   char * fileBuffer = (char *)calloc(inode->size + 1, sizeof(char));
 
    int numZones = inode->size / zonesize;
+   int remBytes = inode->size % zonesize;
    int bytesRead = 0;
+   int numBytes = 0;
    int i;
    int base = ftell(fImage);
 
+   if (!isReg(srcPathInode)) 
+   { /* file is not a regular file */
+      exit(EXIT_FAILURE);
+   }
+
+   if (remBytes != 0) 
+   { /* if there are remaining bytes, then there is another zone */
+      numZones++;
+   }
+
+   numBytes = zonesize; /* set the amount of bytes to read */
    if (numZones > 7)
    {
       numZones = 7;
    }
 
-   if (isReg(srcPathInode))
+   for(i = 0; i < numZones; i++)
    {
-      for(i = 0; i < numZones; i++)
-      {
-         if(srcPathInode->zone[i])
-         {
-            fseek(fImage, base, SEEK_SET);
-            if(inode->size - bytesRead <= 0)
-            {
-               fprintf(stderr, "fuck\n");
-               exit(EXIT_FAILURE);
-            }
-            if(inode->size - bytesRead < zonesize)
-            {
-               seekZone(fImage, superBlock, srcPathInode->zone[i]);
-               fread(fileBuffer + bytesRead, inode->size - bytesRead, 
-                  1, fImage);
-               bytesRead += inode->size - bytesRead;
-            }
-            else
-            {
-               seekZone(fImage, superBlock, srcPathInode->zone[i]);
-               fread(fileBuffer + bytesRead, zonesize, 1, fImage);
-               bytesRead += zonesize;
-            }
-         }
+      if(inode->size <= bytesRead)
+      { /* return if we have read all bytes */
+         return;
       }
-   } 
-   else 
-   {
-      /* file is not a regular file */
-      exit(EXIT_FAILURE);
-   }
-   fseek(fImage, base, SEEK_SET);
-   return fileBuffer;
-}
+      if(srcPathInode->zone[i])
+      {
+         fseek(fImage, base, SEEK_SET);
+         seekZone(fImage, superBlock, srcPathInode->zone[i]);
 
-void writeFileContents(char * fileBuffer, FILE * destFile) {
-   fwrite(fileBuffer, strlen(fileBuffer), 1, destFile);
+         if (i == numZones - 1) 
+         { /* if at last zone, read in remaining bytes */
+            numBytes = remBytes;
+         }
+         if (!numBytes) {
+            numBytes = zonesize;
+         }
+         
+         fread(fileBuffer, numBytes, 1, fImage);
+         fwrite(fileBuffer, numBytes, 1, destFile);
+         bytesRead += numBytes;
+      }
+      else 
+      { /* Hole */
+         memset(fileBuffer, 0, zonesize);
+         fwrite(fileBuffer, zonesize, 1, destFile);
+         bytesRead += zonesize;
+      }
+   }
 }
 
 int main(int argc, char ** argv) 
@@ -150,7 +156,6 @@ int main(int argc, char ** argv)
    FILE * destFile;
    struct superblock * superBlock;
    struct inode * rootInode = malloc(sizeof(struct inode));
-   char * fileContents;
    int res;
    struct cmdLine * cmdline = malloc(sizeof(struct cmdLine));
 
@@ -160,7 +165,7 @@ int main(int argc, char ** argv)
       printUsage();
    }
 
-   fImage = fopen(cmdline->imageFile, "r");
+   fImage = fopen(cmdline->imagePath, "r");
    if(!fImage)
    {
       fprintf(stderr, "failed to open disk image\n");
@@ -185,9 +190,8 @@ int main(int argc, char ** argv)
       destFile = stdout;
    }
 
-   fileContents = getFileContents(fImage, superBlock, rootInode, 
-      cmdline->pathName);
-   writeFileContents(fileContents, destFile);
+   writeFileContents(fImage, superBlock, rootInode, cmdline->pathName, 
+      destFile);
 
    return 0;
 }

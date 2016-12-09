@@ -18,17 +18,17 @@ void printSuperBlock(struct superblock * superBlock)
    uint32_t zonesize = superBlock->blocksize << superBlock->log_zone_size;
    uint32_t addr;
 
-    printf("Superblock Contents: \nStored Fields: \n");
-    printf("   ninodes %10d\n", superBlock->ninodes);
-    printf("   i_blocks %9d\n", superBlock->i_blocks);
-    printf("   z_blocks %9d\n", superBlock->z_blocks);
-    printf("   firstdata %8d\n", superBlock->firstdata);
-    printf("   log_zone_size %4d\n", superBlock->log_zone_size);
-    printf("   max_file %9u\n", superBlock->max_file);
-    printf("   magic %12x\n", superBlock->magic);
-    printf("   zones %12d\n", superBlock->zones);
-    printf("   blocksize %8d\n", superBlock->blocksize);
-    printf("   subversion %7d\n", superBlock->subversion);
+   printf("Superblock Contents: \nStored Fields: \n");
+   printf("   ninodes %10d\n", superBlock->ninodes);
+   printf("   i_blocks %9d\n", superBlock->i_blocks);
+   printf("   z_blocks %9d\n", superBlock->z_blocks);
+   printf("   firstdata %8d\n", superBlock->firstdata);
+   printf("   log_zone_size %4d\n", superBlock->log_zone_size);
+   printf("   max_file %9u\n", superBlock->max_file);
+   printf("   magic %12x\n", superBlock->magic);
+   printf("   zones %12d\n", superBlock->zones);
+   printf("   blocksize %8d\n", superBlock->blocksize);
+   printf("   subversion %7d\n", superBlock->subversion);
    printf("Computed Fields: \n");
    printf("   version: %9d\n", MINIX_VERSION);
    addr = 2 * superBlock->blocksize / zonesize;
@@ -44,9 +44,6 @@ void printSuperBlock(struct superblock * superBlock)
    printf("   fileent_size %5d\n", DIRENT_SIZE);
    printf("   max_filename %5d\n", DIRENT_NAME_LEN);
    printf("   ent_per_zone %5d\n\n", zonesize / DIRENT_SIZE);
-
-
-
 }
 
 void printiNode(struct inode * inode)
@@ -132,12 +129,13 @@ struct inode * findDir(FILE * fImage, struct inode * inode,
    int numEntriesRead;
    int base = ftell(fImage);
    int res = 0;
-
    struct inode * nextNode;
-   char * pathToken = strtok(path, PATH_DELIM);
+   char * pathCpy = (char *)malloc(strlen(path));
+   char * pathToken;
    int tokenFlag = 0;
 
-
+   strcpy(pathCpy, path);
+   pathToken = strtok(path, PATH_DELIM);
    nextNode = inode;
 
    while(pathToken)
@@ -165,6 +163,13 @@ struct inode * findDir(FILE * fImage, struct inode * inode,
          {
             pathToken = strtok(NULL, PATH_DELIM);
             tokenFlag = 1;
+
+            if (pathToken && !isDir(nextNode)) 
+            {   
+               fprintf(stdout, "lookupdir: Not a Directory\n");
+               fprintf(stdout, "%s\n", pathCpy);
+               exit(EXIT_FAILURE);
+            }
             break;
          }
       }
@@ -202,7 +207,7 @@ void printPartitionTable(FILE * fImage)
 }
 
 /*assumes file stream is set to beginning of partition table*/
-void validatePartTable(FILE * fImage)
+void validatePartTable(FILE * fImage, char * imagePath)
 {
    int rew = ftell(fImage);
    uint8_t check = 0;
@@ -211,7 +216,8 @@ void validatePartTable(FILE * fImage)
    fread(&check, sizeof(uint8_t), 1, fImage);
    if(check != BOOT_SECTOR_BYTE_510)
    {
-      fprintf(stderr, "invalid partition table\n");
+      fprintf(stderr, "Invalid partition table.\n");
+      fprintf(stderr, "Unable to open disk image \"%s\".\n", imagePath);
       exit(EXIT_FAILURE);
    }
    fread(&check, sizeof(uint8_t), 1, fImage);
@@ -235,12 +241,15 @@ void partIsMinix(struct part_entry * entry)
 
 /*sets fImage to start of specified partition
  *assume fImage is set at the biginning of the partition table*/
-void seekPartition(FILE * fImage, int partition, int verbose)
+void seekPartition(FILE * fImage, int partition, int verbose , 
+    char * imagePath)
 {
    struct part_entry * entry = malloc(sizeof(struct part_entry));
    if(verbose)
+   {
       printPartitionTable(fImage);
-   validatePartTable(fImage);
+   }
+   validatePartTable(fImage, imagePath);
 
    /*get entry from table*/
    fseek(fImage, partition* sizeof(struct part_entry), SEEK_CUR);
@@ -253,22 +262,26 @@ void seekPartition(FILE * fImage, int partition, int verbose)
 
 /*goes to the start of the filesystem*/
 void findFileSystem(FILE * fImage, int partition, int subpartition, 
-   int verbose)
+   int verbose, char * imagePath)
 {
    int rew;
    fseek(fImage, 0, SEEK_SET);
    fseek(fImage, LOC_PARTITION_TABLE, SEEK_CUR);
-   if(verbose)
+   if(verbose) 
+   {
       printf("Partition Table: \n");
-   seekPartition(fImage, partition, verbose);
+   }
+   seekPartition(fImage, partition, verbose, imagePath);
 
    if(subpartition >= 0)
    {
       rew = ftell(fImage);
       fseek(fImage, LOC_PARTITION_TABLE, SEEK_CUR);
       if(verbose)
+      {
          printf("Subpartition Table: \n");
-      seekPartition(fImage, subpartition, verbose);
+      }
+      seekPartition(fImage, subpartition, verbose, imagePath);
    }
 }
 
@@ -292,30 +305,40 @@ void getInode(FILE * fImage, uint32_t nodeNum,
 
 struct superblock * getfsSuperblock(FILE * fImage, struct cmdLine * cmdline)
 {
-    struct superblock * superBlock = malloc(sizeof(struct superblock));
+   struct superblock * superBlock = malloc(sizeof(struct superblock));
    int rew;
 
-
-    /*fseek(fImage, 0, SEEK_SET);
-    fseek(fImage, SECTOR_SIZE * 2, SEEK_CUR);*/
    if(cmdline->pFlag)
    {
       if(cmdline->sFlag)
       {
-         findFileSystem(fImage, cmdline->pVal, cmdline->sVal, cmdline->vFlag);
+         findFileSystem(fImage, cmdline->pVal, cmdline->sVal, cmdline->vFlag, 
+            cmdline->imagePath);
       }
       else
       {
-         findFileSystem(fImage, cmdline->pVal, -1, cmdline->vFlag);
+         findFileSystem(fImage, cmdline->pVal, -1, cmdline->vFlag, 
+            cmdline->imagePath);
       }
    }
 
    rew = ftell(fImage);
 
    fseek(fImage, SECTOR_SIZE * 2, SEEK_CUR);
-    fread(superBlock, sizeof(struct superblock), 1, fImage);
-   if(cmdline->vFlag)
-      printSuperBlock(superBlock);
+   fread(superBlock, sizeof(struct superblock), 1, fImage);
+   if (superBlock->magic == MINIX_MAGIC_NUM) 
+   {
+      if(cmdline->vFlag)
+      {
+         printSuperBlock(superBlock);
+      }
+   } 
+   else 
+   { /* invalid superblock */
+      fprintf(stderr, "Bad magic number. (0x%x)\n", superBlock->magic);
+      fprintf(stderr, "This doesn't look like a MINIX filesystem.\n");
+      exit(EXIT_FAILURE);
+   }
 
    fseek(fImage, rew, SEEK_SET);
    return superBlock;
